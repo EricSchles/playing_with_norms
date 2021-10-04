@@ -14,9 +14,17 @@ def slicer(array, axis=1, range_func=None):
     
 def norm(w, norm_coef=2):
     if norm_coef == 1:
-        return max(abs(w).sum())
+        try:
+            iter(abs(w).sum())
+            return max(abs(w).sum())
+        except TypeError:
+            return abs(w).sum()
     if norm_coef == -1:
-        return min(abs(w).sum())
+        try:
+            iter(abs(w).sum())
+            return min(abs(w).sum())
+        except TypeError:
+            return abs(w).sum()
     else:
         return math.pow(np.power(w, norm_coef).sum(), 1/norm_coef)
                     
@@ -53,7 +61,7 @@ def mean_squared_error(y_true, y_pred, squared=True):
 
 class lp_regularization():
     """
-    Add l2 regularization penalty to linear models.
+    Add l_{p} regularization penalty to linear models.
 
     Regularization term:
 
@@ -81,7 +89,57 @@ class lp_regularization():
 
     def __call__(self, w):
         """Calculate regularization term."""
-        return self.alpha * 0.5 * norm(w, norm_coef=self.norm_coef)
+        return self.alpha * norm(w, norm_coef=self.norm_coef)
+    
+    def grad(self, w):
+        """
+        Calculate gradient descent regularization term.
+
+            alpha * w
+
+        where alpha is the factor determining the amount of regularization and
+        w is the vector of feature weights.  
+        """
+        gradient_penalty = np.asarray(self.alpha) * w
+        # Insert 0 for bias term.
+        return np.insert(gradient_penalty, 0, 0, axis=0)
+
+class lplq_regularization():
+    """
+    Add (beta*lp + 1/beta*lq) regularization penalty to linear models.
+
+    Regularization term:
+
+        alpha * (beta * L_{p} + 1/beta * L_{q})
+
+    Where w is the vector of feature weights and alpha is the hyperparameter
+    controlling how much regularization is done to the model.
+
+    Parameters
+    ----------
+    alpha : float, default=1.0
+        Factor determining the amount of regularization to be performed on
+        the model.
+    norm_coef: int, default=2
+        The functional form of the regularization
+
+    Notes
+    -----
+    The bias term is not regularized and therefore should be omitted from the
+    feature weights as input.  
+    """
+    def __init__(self, alpha=1.0, beta=0.5, norm_coef_one=2, norm_coef_two=1):
+        self.alpha = alpha
+        self.beta = beta
+        self.norm_coef_one = norm_coef_one
+        self.norm_coef_two = norm_coef_two
+
+    def __call__(self, w):
+        """Calculate regularization term."""
+        return self.alpha * (
+            self.beta * norm(w, norm_coef=self.norm_coef_one) +
+            (1/self.beta) * norm(w, norm_coef=self.norm_coef_two)
+        )
     
     def grad(self, w):
         """
@@ -298,12 +356,58 @@ class LpRegression(Regression):
         self.regularization = lp_regularization(alpha=self.alpha, norm_coef=self.norm_coef)
         super(LpRegression, self).__init__(n_iter=n_iter, lr=lr)
 
+class LpLqRegression(Regression):
+    """
+    Class representing a linear regression model with l2 regularization.
+
+    Minimizes the cost fuction:
+
+        J(w) = MSE(w) + alpha * (beta * L_{p} + 1/beta * L_{q})
+
+    where w is the vector of feature weights and alpha is the hyperparameter
+    controlling how much regularization is done to the model.
+    
+    0 < beta < 1
+
+    Parameters
+    ----------
+    n_iter : float, default=1000
+        Maximum number of iterations to be used by batch gradient descent.
+    lr : float, default=1e-1
+        Learning rate determining the size of steps in batch gradient descent.
+    
+    alpha : float, default=1.0
+        Factor determining the amount of regularization to be performed on
+        the model.
+
+    Attributes 
+    ----------
+    coef_ : array of shape (n_features, 1)
+        Estimated coefficients for the regression problem.
+
+    Notes
+    -----
+    This class is capable of being trained using batch gradient descent at
+    current version.
+    """
+    def __init__(self, n_iter=100, lr=1e-2, alpha=1.0, beta=0.5, norm_coef_one=2, norm_coef_two=1):
+        self.alpha = alpha
+        self.beta = beta
+        self.norm_coef_one = norm_coef_one
+        self.norm_coef_two = norm_coef_two
+        self.regularization = lplq_regularization(
+            alpha=self.alpha, beta=self.beta,
+            norm_coef_one=self.norm_coef_one,
+            norm_coef_two=self.norm_coef_two
+        )
+        super(LpLqRegression, self).__init__(n_iter=n_iter, lr=lr)
+
 if __name__ == '__main__':
     import pandas as pd
     import numpy as np
 
     # default is L2 norm
-    l2_reg = LpRegression(norm_coef=4)
+    elasticnet_reg = LpLqRegression(norm_coef_one=2, norm_coef_two=1)
     df = pd.DataFrame()
     df[0] = np.random.normal(50, 12, size=1000)
     df[1] = np.random.normal(60, 14, size=1000)
@@ -312,5 +416,5 @@ if __name__ == '__main__':
     df.head()
     X = df[[0, 1, 2]].values
     y = df["y"].values
-    l2_reg.fit(X, y)
-    print(l2_reg.predict(X))
+    elasticnet_reg.fit(X, y)
+    print(elasticnet_reg.predict(X))
