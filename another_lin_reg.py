@@ -59,7 +59,7 @@ def mean_squared_error(y_true, y_pred, squared=True):
     # Return average error across all instances.
     return np.average(errors)
 
-class lp_regularization():
+class lp_regularization:
     """
     Add l_{p} regularization penalty to linear models.
 
@@ -104,7 +104,7 @@ class lp_regularization():
         # Insert 0 for bias term.
         return np.insert(gradient_penalty, 0, 0, axis=0)
 
-class lplq_regularization():
+class lplq_regularization:
     """
     Add (beta*lp + 1/beta*lq) regularization penalty to linear models.
 
@@ -154,7 +154,7 @@ class lplq_regularization():
         # Insert 0 for bias term.
         return np.insert(gradient_penalty, 0, 0, axis=0)
 
-class Regression():
+class Regression:
     """
     Class representing our base regression model.  
     
